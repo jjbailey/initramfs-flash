@@ -1,0 +1,138 @@
+#!/bin/sh
+# vim: set tabstop=4 shiftwidth=4 expandtab:
+
+# Print a highlighted notice message
+notice()
+{
+    local yellow="\033[1;33m"
+    local sgr0="\033[0m"
+    echo -e "${yellow}==[ $* ]==${sgr0}"
+    sleep 1
+}
+
+notice "init started"
+
+# Currently running kernel
+RUNKVER=$(uname -r)
+echo "Using kernel modules for: $RUNKVER"
+
+# Mount essentials
+mount -t proc none /proc
+mount -t sysfs none /sys
+mount -t devtmpfs none /dev
+mkdir -p /tmp
+
+depmod -a "$RUNKVER" 2> /dev/null || true
+
+# Dependency modules
+for dep in libphy i2c-core ptp mdio net_failover failover mii ; do
+    modprobe "$dep" 2> /dev/null || echo "modprobe $dep failed"
+done
+
+# NIC drivers
+for mod in bnx2 bnx2x e1000e i40e igb ixgbe tg3 virtio_net vmxnet3 ; do
+    notice "Loading NIC module: $mod"
+    modprobe "$mod" 2> /dev/null || echo "modprobe $mod failed"
+done
+
+# Essential disk modules
+for mod in ahci cciss hpsa megaraid_sas mpt3sas nvme scsi_mod sd_mod vmw_pvscsi ; do
+    if modprobe "$mod" 2> /dev/null ; then
+        notice "Loaded disk module: $mod"
+    else
+        echo "modprobe $mod failed"
+    fi
+done
+
+# Populate /dev
+if command -v mdev > /dev/null 2>&1 ; then
+    mdev -s
+elif command -v udevadm > /dev/null 2>&1 ; then
+    udevadm trigger
+fi
+
+notice "Loaded modules"
+lsmod || true
+
+notice "Waiting for networks"
+
+GOT_IP=false
+
+# Bring up interfaces and apply DHCP
+for IF in /sys/class/net/* ; do
+    IF=${IF##*/}
+    [ "$IF" = "lo" ] && continue
+    echo "Bringing up $IF"
+    ip link set "$IF" up
+    ip addr flush dev "$IF"
+
+    echo "Running udhcpc on $IF..."
+    if udhcpc -i "$IF" -t 5 -T 3 -n ; then
+        notice "DHCP successful on $IF"
+        ip addr show "$IF"
+        GOT_IP=true
+        break
+    else
+        echo "DHCP failed on $IF"
+    fi
+done
+
+if [ "$GOT_IP" != "true" ] ; then
+    echo "ERROR: No network connectivity"
+    exec /bin/sh
+fi
+
+notice "Network setup complete"
+
+# Extract kernel parameters
+IMG_URL=""
+DEV_URL=""
+for x in $(cat /proc/cmdline) ; do
+    case $x in
+        img=*) IMG_URL="${x#img=}" ;;
+        dev=*) DEV_URL="${x#dev=}" ;;
+    esac
+done
+
+if [ -z "$IMG_URL" ] ; then
+    echo "ERROR: no img= kernel parameter found"
+    exec /bin/sh
+fi
+
+TARGET_DEV=${DEV_URL:-/dev/sda}
+
+notice "Image URL: $IMG_URL"
+notice "Target device: $TARGET_DEV"
+
+case "$IMG_URL" in
+    *.gz)
+        notice "Downloading and decompressing image..."
+        TMP_GZ="/tmp/image.gz"
+        TMP_IMG="/tmp/image.raw"
+        if wget -O "$TMP_GZ" "$IMG_URL" && gunzip -c "$TMP_GZ" > "$TMP_IMG" && dd if="$TMP_IMG" of="$TARGET_DEV" bs=1M oflag=direct ; then
+            notice "Flashing complete."
+        else
+            echo "ERROR: Flashing failed"
+            exec /bin/sh
+        fi
+        ;;
+    *)
+        notice "Downloading image..."
+        TMP_IMG="/tmp/image"
+        if wget -O "$TMP_IMG" "$IMG_URL" && dd if="$TMP_IMG" of="$TARGET_DEV" bs=1M oflag=direct ; then
+            notice "Flashing complete."
+        else
+            echo "ERROR: Flashing failed"
+            exec /bin/sh
+        fi
+        ;;
+esac
+
+notice "Flashing complete. Syncing..."
+sync
+
+notice "Flashing complete. Rebooting..."
+reboot -f
+
+# Shell fallback for debugging
+exec /bin/sh
