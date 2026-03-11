@@ -1,0 +1,16 @@
+Example iPXE entries for boot.ipxe
+
+...
+
+:main_menu
+item flash-ubuntu-24.04     Ubuntu 24.04 (flash)
+
+...
+
+:flash-ubuntu-24.04
+kernel http://10.0.0.6/ubuntu-24.04-flash/ubuntu-24.04.vmlinuz \
+    img=http://10.0.0.6/ubuntu-24.04-flash/ubuntu-24.04.raw.gz \
+    init=/init console=ttyS0,115200n8 console=tty0 \
+    net.ifnames=0 biosdevname=0
+initrd http://10.0.0.6/ubuntu-24.04-flash/ubuntu-24.04.initrd
+boot

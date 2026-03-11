@@ -1,0 +1,16 @@
+#!/bin/sh
+# Minimal DHCP client script for udhcpc
+
+[ -n "$broadcast" ] && BROADCAST="broadcast $broadcast"
+[ -n "$subnet" ] && NETMASK="netmask $subnet"
+
+case "$1" in
+    bound | renew)
+        ifconfig $interface $ip $BROADCAST $NETMASK
+        if [ -n "$router" ] ; then
+            echo "udhcpc: adding default route via $router"
+            ip route add default via $router dev $interface
+        fi
+        echo "nameserver $dns" > /etc/resolv.conf
+        ;;
+esac

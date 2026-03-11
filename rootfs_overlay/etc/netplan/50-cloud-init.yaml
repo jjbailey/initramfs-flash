@@ -1,0 +1,10 @@
+# systemctl enable systemd-networkd
+
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    ethernet:
+      match:
+        name: "en*"
+      dhcp4: true
