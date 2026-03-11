@@ -67,7 +67,7 @@ for IF in /sys/class/net/* ; do
     ip addr flush dev "$IF"
 
     echo "Running udhcpc on $IF..."
-    if udhcpc -i "$IF" -t 5 -T 3 -n ; then
+    if udhcpc -i "$IF" -s /etc/udhcpc/default.script -t 5 -T 3 -n ; then
         notice "DHCP successful on $IF"
         ip addr show "$IF"
         GOT_IP=true
@@ -107,9 +107,7 @@ notice "Target device: $TARGET_DEV"
 case "$IMG_URL" in
     *.gz)
         notice "Downloading and decompressing image..."
-        TMP_GZ="/tmp/image.gz"
-        TMP_IMG="/tmp/image.raw"
-        if wget -O "$TMP_GZ" "$IMG_URL" && gunzip -c "$TMP_GZ" > "$TMP_IMG" && dd if="$TMP_IMG" of="$TARGET_DEV" bs=1M oflag=direct ; then
+        if wget -O - "$IMG_URL" | gunzip -c | dd of="$TARGET_DEV" bs=1M oflag=direct ; then
             notice "Flashing complete."
         else
             echo "ERROR: Flashing failed"

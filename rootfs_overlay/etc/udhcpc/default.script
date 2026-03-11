@@ -9,7 +9,7 @@ case "$1" in
         ifconfig $interface $ip $BROADCAST $NETMASK
         if [ -n "$router" ] ; then
             echo "udhcpc: adding default route via $router"
-            route add default gw $router dev $interface
+            ip route add default via $router dev $interface
         fi
         echo "nameserver $dns" > /etc/resolv.conf
         ;;

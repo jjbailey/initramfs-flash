@@ -4,7 +4,7 @@ SHELL := /bin/bash
 ROOT := build/rootfs
 BUSYBOX_URL ?= https://busybox.net/downloads/binaries/1.35.0-x86_64-linux-musl/busybox
 BUSYBOX_BIN := build/busybox
-TFTPBOOT ?= ../tftpboot
+TFTPBOOT ?= /tftpboot
 
 # O/S dist version (required for build/install targets)
 ifeq (,$(filter clean distclean help,$(MAKECMDGOALS)))
@@ -147,16 +147,21 @@ $(INITRAMFS): $(ROOT)
 
 install: all
 	$(call notice,Installing kernel and initrd to $(TFTPBOOT)/$(DISTRO)-flash/)
-	@if [ ! -f $(LOCAL_KERNEL) ]; then \
-		echo "Error: $(LOCAL_KERNEL) not built yet. Run 'make all' first."; exit 1; \
-	fi
-	@if [ ! -f $(INITRAMFS) ]; then \
-		echo "Error: $(INITRAMFS) not present. Run 'make all' first."; exit 1; \
-	fi
-	cp -p $(TFTPBOOT)/$(DISTRO)-flash/$(DISTRO).vmlinuz $(TFTPBOOT)/$(DISTRO)-flash/$(DISTRO).vmlinuz~
-	cp -p $(TFTPBOOT)/$(DISTRO)-flash/$(DISTRO).initrd $(TFTPBOOT)/$(DISTRO)-flash/$(DISTRO).initrd~
+	@mkdir -p $(TFTPBOOT)/$(DISTRO)-flash
+	@cp -p $(TFTPBOOT)/$(DISTRO)-flash/$(DISTRO).vmlinuz $(TFTPBOOT)/$(DISTRO)-flash/$(DISTRO).vmlinuz~ 2>/dev/null || true
+	@cp -p $(TFTPBOOT)/$(DISTRO)-flash/$(DISTRO).initrd $(TFTPBOOT)/$(DISTRO)-flash/$(DISTRO).initrd~ 2>/dev/null || true
 	cp -p $(LOCAL_KERNEL) $(TFTPBOOT)/$(DISTRO)-flash/$(DISTRO).vmlinuz
 	cp -p $(INITRAMFS) $(TFTPBOOT)/$(DISTRO)-flash/$(DISTRO).initrd
+	@{ \
+		printf ':$(DISTRO)-flash\n'; \
+		printf 'set base http://10.0.0.6/$(DISTRO)-flash\n'; \
+		printf 'kernel $${base}/$(DISTRO).vmlinuz \\\n'; \
+		printf '    img=$${base}/$(DISTRO).raw.gz \\\n'; \
+		printf '    init=/init console=ttyS0,115200n8 console=tty0 \\\n'; \
+		printf '    net.ifnames=0 biosdevname=0\n'; \
+		printf 'initrd $${base}/$(DISTRO).initrd\n'; \
+		printf 'boot\n'; \
+	} > $(TFTPBOOT)/$(DISTRO)-flash/ipxe.menu
 	$(call notice,Install finished!)
 
 clean:
