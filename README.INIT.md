@@ -44,8 +44,8 @@ depending on what’s available.
 - If no `img=` parameter is found, it drops into a shell for debugging.
 - If an image is provided:
   - Downloads it to a temporary file via `wget` (with error checking).
-  - If it’s `.gz`, downloads to `/tmp/image.gz` then pipes through `gunzip`
-    into `dd`.
+  - If it’s `.gz`, streams directly via `wget | gunzip | dd` without a
+    temporary file.
   - Writes the raw image to the target device using `dd`.
   - If download or flashing fails, drops to a shell for debugging.
 

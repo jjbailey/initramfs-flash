@@ -17,7 +17,7 @@ Variables can be overridden when running make:
 - `BUSYBOX_URL`: URL to download BusyBox binary
   (default: pre-built x86_64-linux-musl)
 - `TFTPBOOT`: Path to the tftpboot directory
-  (default: `../tftpboot`, a sibling of this repo)
+  (default: `/tftpboot`)
 
 `DISTRO` must be specified on every make invocation — there is no default.
 
@@ -51,8 +51,10 @@ Variables can be overridden when running make:
 
 - **Backup + Copy:** On `make install`, the Makefile backs up previous images
   (by appending `~`), then installs the new kernel and `build/$(DISTRO).initrd`
-  to `$(TFTPBOOT)/$(DISTRO)-flash/`. Note: the backup step will fail on first
-  deploy if no prior images exist in the destination.
+  to `$(TFTPBOOT)/$(DISTRO)-flash/`. If no prior images exist, the backup step
+  is silently skipped.
+- **iPXE Menu:** Also generates a ready-to-use `$(TFTPBOOT)/$(DISTRO)-flash/ipxe.menu`
+  file with a sample iPXE boot stanza for the installed images.
 - **Result:** System administrators have up-to-date boot images ready for
   network provisioning.
 
@@ -99,7 +101,7 @@ Variables can be overridden when running make:
     ```
 
     *Backs up existing tftpboot images (appends `~`), then installs the
-    newly built kernel and initrd.*
+    newly built kernel and initrd, and writes a sample `ipxe.menu`.*
 
 3. **Clean build artifacts:**
 
