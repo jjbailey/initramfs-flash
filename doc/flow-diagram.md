@@ -10,7 +10,7 @@ flowchart TD
     E[Load kernel modules]
     F[Populate dev]
     G[Bring up NICs and DHCP]
-    H[Parse kernel cmdline]
+    H["Parse kernel cmdline<br/>img= (image URL), dev= (target device, default /dev/sda)"]
     I[Download and flash image]
     J[Sync and Reboot]
     K[Fallback shell]
@@ -23,7 +23,7 @@ flowchart TD
     F --> G
     G -->|No DHCP| K
     G -->|Got IP| H
-    H -->|No img= param| K
+    H -->|"No img= param"| K
     H -->|img= found| I
     I -->|Error| K
     I -->|Success| J
