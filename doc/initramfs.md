@@ -2,7 +2,6 @@
 
 <!-- markdownlint-disable MD013 -->
 ```mermaid
-%%{init: {'flowchart': {'subGraphTitleMargin': {'top': 10, 'bottom': 10}, 'useMaxWidth': false}}}%%
 flowchart TD
     A["Baremetal Machine<br/>Firmware / BIOS"]
     B[iPXE ROM]
