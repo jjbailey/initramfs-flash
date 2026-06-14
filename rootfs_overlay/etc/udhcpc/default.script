@@ -11,6 +11,6 @@ case "$1" in
             echo "udhcpc: adding default route via $router"
             ip route add default via $router dev $interface
         fi
-        echo "nameserver $dns" > /etc/resolv.conf
+        for ns in $dns; do echo "nameserver $ns"; done > /etc/resolv.conf
         ;;
 esac

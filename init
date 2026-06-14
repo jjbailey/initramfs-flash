@@ -48,7 +48,7 @@ done
 if command -v mdev > /dev/null 2>&1 ; then
     mdev -s
 elif command -v udevadm > /dev/null 2>&1 ; then
-    udevadm trigger
+    udevadm trigger && udevadm settle
 fi
 
 notice "Loaded modules"
@@ -107,22 +107,37 @@ notice "Target device: $TARGET_DEV"
 case "$IMG_URL" in
     *.gz)
         notice "Downloading and decompressing image..."
-        if wget -O - "$IMG_URL" | gunzip -c | dd of="$TARGET_DEV" bs=1M oflag=direct ; then
-            notice "Flashing complete."
-        else
-            echo "ERROR: Flashing failed"
+        FLASH_PIPE="/tmp/flash.pipe"
+        mkfifo "$FLASH_PIPE"
+        wget -O - "$IMG_URL" | gunzip -c > "$FLASH_PIPE" &
+        WGET_PID=$!
+        dd if="$FLASH_PIPE" of="$TARGET_DEV" bs=1M oflag=direct
+        DD_STATUS=$?
+        wait $WGET_PID
+        WGET_STATUS=$?
+        rm -f "$FLASH_PIPE"
+        if [ $DD_STATUS -ne 0 ] || [ $WGET_STATUS -ne 0 ] ; then
+            echo "ERROR: Flashing failed (wget=$WGET_STATUS dd=$DD_STATUS)"
             exec /bin/sh
         fi
+        notice "Flashing complete."
         ;;
     *)
         notice "Downloading image..."
-        TMP_IMG="/tmp/image"
-        if wget -O "$TMP_IMG" "$IMG_URL" && dd if="$TMP_IMG" of="$TARGET_DEV" bs=1M oflag=direct ; then
-            notice "Flashing complete."
-        else
-            echo "ERROR: Flashing failed"
+        FLASH_PIPE="/tmp/flash.pipe"
+        mkfifo "$FLASH_PIPE"
+        wget -O - "$IMG_URL" > "$FLASH_PIPE" &
+        WGET_PID=$!
+        dd if="$FLASH_PIPE" of="$TARGET_DEV" bs=1M oflag=direct
+        DD_STATUS=$?
+        wait $WGET_PID
+        WGET_STATUS=$?
+        rm -f "$FLASH_PIPE"
+        if [ $DD_STATUS -ne 0 ] || [ $WGET_STATUS -ne 0 ] ; then
+            echo "ERROR: Flashing failed (wget=$WGET_STATUS dd=$DD_STATUS)"
             exec /bin/sh
         fi
+        notice "Flashing complete."
         ;;
 esac
 
