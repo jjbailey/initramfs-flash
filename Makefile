@@ -25,8 +25,6 @@ KERNEL_IMAGE := /boot/vmlinuz-$(RUNKVER)
 # Local targets
 LOCAL_KERNEL := vmlinuz-$(RUNKVER)
 
-notice = @echo "==> $1"
-
 all: $(LOCAL_KERNEL) $(INITRAMFS)
 
 # Ensure kernel image exists before copying
