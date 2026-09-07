@@ -1,4 +1,4 @@
-# High-Level Overview of /init
+# High-Level Overview of `/init`
 
 ## Initialization & Logging
 
@@ -22,8 +22,9 @@
 
 ## Device Population
 
-- Populates `/dev` device nodes using either `mdev` or `udevadm`,
-depending on what’s available.
+- Attempts to populate `/dev` using either `mdev` or `udevadm`, depending on
+  what is available. The image normally already has device nodes from the
+  mounted `devtmpfs`, and the BusyBox applet set does not include `mdev`.
 
 ## Networking Setup
 
@@ -43,10 +44,10 @@ depending on what’s available.
 
 - If no `img=` parameter is found, it drops into a shell for debugging.
 - If an image is provided:
-  - If it’s `.gz`, streams directly via `wget | gunzip | dd` without a
-    temporary file.
-  - Otherwise, downloads it to a temporary file (`/tmp/image`) via `wget`,
-    then writes it to the target device using `dd`.
+  - If it ends in `.gz`, downloads and decompresses it while streaming to `dd`.
+  - Otherwise, streams the downloaded bytes directly to `dd` as well.
+  - In both cases, a named pipe under `/tmp` connects the downloader to `dd`;
+    the complete image is not stored in the initramfs.
   - If download or flashing fails, drops to a shell for debugging.
 
 ## Finalization
@@ -63,7 +64,8 @@ This script is essentially a minimal init system for provisioning machines. It:
 
 - Boots enough of Linux to get drivers and networking running.
 - Fetches a disk image from a URL (supplied via the kernel command line).
-- Writes that image directly onto the specified disk device.
+- Writes that image directly onto the specified disk device, overwriting its
+  existing contents.
 - Reboots into the newly provisioned system.
 
 It’s like a stripped-down installer or PXE boot environment that automates
