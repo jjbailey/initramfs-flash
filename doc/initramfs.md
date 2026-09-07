@@ -1,11 +1,12 @@
 # Initramfs Boot Flow
 
 <!-- markdownlint-disable MD013 -->
+
 ```mermaid
 flowchart TD
     A["Baremetal Machine<br/>Firmware / BIOS"]
     B[iPXE ROM]
-    C["Kernel + Initramfs + Disk Image<br/>loaded into memory"]
+    C["Kernel + Initramfs<br/>loaded by iPXE"]
 
     subgraph ramdisk ["RAM Disk (initramfs as /)"]
         D1["/bin/busybox<br/>/init<br/>/etc/udhcpc<br/>/tmp"]
@@ -18,11 +19,11 @@ flowchart TD
 
     E1["/init loads kernel modules<br/>NIC, storage, virtio, RAID"]
     E2["/init sets up networking<br/>via udhcpc"]
-    E3["/init flashes disk image<br/>DISTRO.raw.gz → block device"]
+    E3["/init downloads and flashes image<br/>img= URL → block device"]
     F[reboot]
 
     A --> B
-    B -->|"Downloads kernel + initramfs + DISTRO.raw.gz"| C
+    B -->|"Downloads kernel + initramfs"| C
     C -->|"Kernel mounts initramfs as /"| ramdisk
     ramdisk --> E1
     E1 --> E2
