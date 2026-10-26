@@ -21,6 +21,8 @@ mount -t proc none /proc
 mount -t sysfs none /sys
 mount -t devtmpfs none /dev
 mkdir -p /tmp
+# The packed rootfs is not a safe place for fifos; fall back if tmpfs fails.
+mount -t tmpfs tmpfs /tmp || echo "WARNING: tmpfs mount on /tmp failed"
 
 depmod -a "$RUNKVER" 2> /dev/null || true
 
@@ -58,7 +60,9 @@ notice "Waiting for networks"
 
 GOT_IP=false
 
-# Bring up interfaces and apply DHCP
+# Bring up interfaces and apply DHCP.
+# -n: exit if no lease is obtained
+# -q: exit after a lease is obtained (otherwise udhcpc stays in the foreground)
 for IF in /sys/class/net/* ; do
     IF=${IF##*/}
     [ "$IF" = "lo" ] && continue
@@ -67,7 +71,7 @@ for IF in /sys/class/net/* ; do
     ip addr flush dev "$IF"
 
     echo "Running udhcpc on $IF..."
-    if udhcpc -i "$IF" -s /etc/udhcpc/default.script -t 5 -T 3 -n ; then
+    if udhcpc -i "$IF" -s /etc/udhcpc/default.script -t 5 -T 3 -n -q ; then
         notice "DHCP successful on $IF"
         ip addr show "$IF"
         GOT_IP=true
@@ -104,40 +108,50 @@ TARGET_DEV=${DEV_URL:-/dev/sda}
 notice "Image URL: $IMG_URL"
 notice "Target device: $TARGET_DEV"
 
+# Stream URL to the target device.
+# Run wget/gunzip in one background pipeline and record its status before
+# exiting. pipefail is required so a gunzip failure is not hidden by a
+# successful redirect. dd's exit status alone is not enough: a short or empty
+# write still returns 0.
+flash_image()
+{
+    decompressed=$1
+    status_file="/tmp/flash.status"
+
+    rm -f "$status_file"
+    (
+        set -o pipefail
+        if [ "$decompressed" = "yes" ] ; then
+            wget -O - "$IMG_URL" | gunzip -c | dd of="$TARGET_DEV" bs=1M oflag=direct conv=fsync
+        else
+            wget -O - "$IMG_URL" | dd of="$TARGET_DEV" bs=1M oflag=direct conv=fsync
+        fi
+        echo $? > "$status_file"
+    ) &
+    writer_pid=$!
+
+    wait "$writer_pid"
+    writer_status=1
+    if [ -f "$status_file" ] ; then
+        read -r writer_status < "$status_file" || writer_status=1
+    fi
+    rm -f "$status_file"
+
+    if [ "$writer_status" -ne 0 ] ; then
+        echo "ERROR: Flashing failed (status=$writer_status)"
+        return 1
+    fi
+    return 0
+}
+
 case "$IMG_URL" in
     *.gz)
         notice "Downloading and decompressing image..."
-        FLASH_PIPE="/tmp/flash.pipe"
-        mkfifo "$FLASH_PIPE"
-        wget -O - "$IMG_URL" | gunzip -c > "$FLASH_PIPE" &
-        WGET_PID=$!
-        dd if="$FLASH_PIPE" of="$TARGET_DEV" bs=1M oflag=direct
-        DD_STATUS=$?
-        wait $WGET_PID
-        WGET_STATUS=$?
-        rm -f "$FLASH_PIPE"
-        if [ $DD_STATUS -ne 0 ] || [ $WGET_STATUS -ne 0 ] ; then
-            echo "ERROR: Flashing failed (wget=$WGET_STATUS dd=$DD_STATUS)"
-            exec /bin/sh
-        fi
-        notice "Flashing complete."
+        flash_image yes || exec /bin/sh
         ;;
     *)
         notice "Downloading image..."
-        FLASH_PIPE="/tmp/flash.pipe"
-        mkfifo "$FLASH_PIPE"
-        wget -O - "$IMG_URL" > "$FLASH_PIPE" &
-        WGET_PID=$!
-        dd if="$FLASH_PIPE" of="$TARGET_DEV" bs=1M oflag=direct
-        DD_STATUS=$?
-        wait $WGET_PID
-        WGET_STATUS=$?
-        rm -f "$FLASH_PIPE"
-        if [ $DD_STATUS -ne 0 ] || [ $WGET_STATUS -ne 0 ] ; then
-            echo "ERROR: Flashing failed (wget=$WGET_STATUS dd=$DD_STATUS)"
-            exec /bin/sh
-        fi
-        notice "Flashing complete."
+        flash_image no || exec /bin/sh
         ;;
 esac
 
